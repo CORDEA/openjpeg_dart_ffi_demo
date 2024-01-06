@@ -1,0 +1,10 @@
+name: OpenJpegBindings
+description: Bindings for `openjpeg.h`.
+output: 'lib/openjpeg_generated_bindings.dart'
+headers:
+  entry-points:
+    - 'openjpeg/src/lib/openjp2/openjpeg.h'
+compiler-opts:
+  - '-Wno-nullability-completeness'
+preamble: |
+  // ignore_for_file: type=lint, unused_element, unused_field
