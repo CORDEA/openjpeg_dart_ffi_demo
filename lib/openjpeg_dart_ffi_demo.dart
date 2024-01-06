@@ -25,7 +25,7 @@ void onMessage(ffi.Pointer<ffi.Char> message, ffi.Pointer<ffi.Void> data) {
   stdout.write(message.cast<ffi.Utf8>().toDartString());
 }
 
-Future<Color> decode(String fileName) async {
+Future<Image> decode(String fileName) async {
   final parameters = ffi.calloc<opj_dparameters_t>();
   _bindings.opj_set_default_decoder_parameters(parameters);
   final codec = _bindings.opj_create_decompress(CODEC_FORMAT.OPJ_CODEC_JP2);
@@ -81,7 +81,8 @@ Future<Color> decode(String fileName) async {
       throw ArgumentError('Invalid number of channels.');
   }
   final width = image.comps[0].w;
-  for (var h = 0; h < image.comps[0].h; h++) {
+  final height = image.comps[0].h;
+  for (var h = 0; h < height; h++) {
     final offset = h * width;
     for (var w = 0; w < width; w++) {
       final i = offset + w;
@@ -105,23 +106,42 @@ Future<Color> decode(String fileName) async {
     }
   }
   _bindings.opj_image_destroy(imagePtrPtr.value);
-  return color;
+  return Image(width: width, height: height, color: color);
+}
+
+class Image {
+  Image({required this.width, required this.height, required this.color});
+
+  final int width;
+  final int height;
+  final Color color;
 }
 
 sealed class Color<T> {
   Color(this.value);
 
   final List<T> value;
+
+  int get channels;
 }
 
 final class ColorRgb extends Color<({int r, int g, int b})> {
   ColorRgb(super.value);
+
+  @override
+  int get channels => 3;
 }
 
 final class ColorRgba extends Color<({int r, int g, int b, int a})> {
   ColorRgba(super.value);
+
+  @override
+  int get channels => 4;
 }
 
 final class ColorGray extends Color<int> {
   ColorGray(super.value);
+
+  @override
+  int get channels => 1;
 }

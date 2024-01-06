@@ -4,3 +4,5 @@
 .idea/
 
 lib/openjpeg_generated_bindings.dart
+
+*.png
