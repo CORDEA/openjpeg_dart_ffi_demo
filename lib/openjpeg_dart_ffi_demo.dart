@@ -21,6 +21,10 @@ final _dylib = () {
 
 final _bindings = OpenJpegBindings(_dylib);
 
+void onMessage(ffi.Pointer<ffi.Char> message, ffi.Pointer<ffi.Void> data) {
+  stdout.write(message.cast<ffi.Utf8>().toDartString());
+}
+
 Future<void> decode(String fileName) async {
   final parameters = ffi.calloc<opj_dparameters_t>();
   _bindings.opj_set_default_decoder_parameters(parameters);
@@ -30,4 +34,10 @@ Future<void> decode(String fileName) async {
     ffi.calloc.free(parameters);
     throw ArgumentError('Failed to set up decoder.');
   }
+
+  final callback =
+      opj_stream_write_fn.fromFunction<opj_msg_callbackFunction>(onMessage);
+  _bindings.opj_set_warning_handler(codec, callback, ffi.nullptr);
+  _bindings.opj_set_error_handler(codec, callback, ffi.nullptr);
+  _bindings.opj_set_info_handler(codec, callback, ffi.nullptr);
 }
