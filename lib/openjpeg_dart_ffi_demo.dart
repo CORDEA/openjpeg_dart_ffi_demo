@@ -25,7 +25,7 @@ void onMessage(ffi.Pointer<ffi.Char> message, ffi.Pointer<ffi.Void> data) {
   stdout.write(message.cast<ffi.Utf8>().toDartString());
 }
 
-Future<void> decode(String fileName) async {
+Future<Color> decode(String fileName) async {
   final parameters = ffi.calloc<opj_dparameters_t>();
   _bindings.opj_set_default_decoder_parameters(parameters);
   final codec = _bindings.opj_create_decompress(CODEC_FORMAT.OPJ_CODEC_JP2);
@@ -47,22 +47,81 @@ Future<void> decode(String fileName) async {
   final imagePtrPtr = ffi.Pointer<ffi.Pointer<opj_image_t>>.fromAddress(
     ffi.calloc<opj_image_t>().address,
   );
-  final imagePtr = imagePtrPtr.value;
   try {
     if (_bindings.opj_read_header(stream, codec, imagePtrPtr) <= 0) {
       throw ArgumentError('Failed to read the header.');
     }
-    if (_bindings.opj_decode(codec, stream, imagePtr) <= 0) {
+    if (_bindings.opj_decode(codec, stream, imagePtrPtr.value) <= 0) {
       throw ArgumentError('Failed to decode.');
     }
     if (_bindings.opj_end_decompress(codec, stream) <= 0) {
       throw ArgumentError('Failed to finalize.');
     }
+  } on ArgumentError catch (_) {
+    _bindings.opj_image_destroy(imagePtrPtr.value);
+    rethrow;
   } finally {
     _bindings.opj_destroy_codec(codec);
     _bindings.opj_stream_destroy(stream);
-    _bindings.opj_image_destroy(imagePtr);
     ffi.calloc.free(parameters);
     ffi.calloc.free(file);
   }
+
+  final image = imagePtrPtr.value.ref;
+  final channels = image.numcomps;
+  final Color color;
+  switch (channels) {
+    case 1:
+      color = ColorGray([]);
+    case 3:
+      color = ColorRgb([]);
+    case 4:
+      color = ColorRgba([]);
+    default:
+      throw ArgumentError('Invalid number of channels.');
+  }
+  final width = image.comps[0].w;
+  for (var h = 0; h < image.comps[0].h; h++) {
+    final offset = h * width;
+    for (var w = 0; w < width; w++) {
+      final i = offset + w;
+      switch (color) {
+        case ColorRgb(value: final value):
+          value.add((
+            r: image.comps[0].data[i],
+            g: image.comps[1].data[i],
+            b: image.comps[2].data[i],
+          ));
+        case ColorRgba(value: final value):
+          value.add((
+            r: image.comps[0].data[i],
+            g: image.comps[1].data[i],
+            b: image.comps[2].data[i],
+            a: image.comps[3].data[i],
+          ));
+        case ColorGray(value: final value):
+          value.add(image.comps[0].data[i]);
+      }
+    }
+  }
+  _bindings.opj_image_destroy(imagePtrPtr.value);
+  return color;
+}
+
+sealed class Color<T> {
+  Color(this.value);
+
+  final List<T> value;
+}
+
+final class ColorRgb extends Color<({int r, int g, int b})> {
+  ColorRgb(super.value);
+}
+
+final class ColorRgba extends Color<({int r, int g, int b, int a})> {
+  ColorRgba(super.value);
+}
+
+final class ColorGray extends Color<int> {
+  ColorGray(super.value);
 }
