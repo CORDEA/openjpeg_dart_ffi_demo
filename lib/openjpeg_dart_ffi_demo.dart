@@ -40,4 +40,29 @@ Future<void> decode(String fileName) async {
   _bindings.opj_set_warning_handler(codec, callback, ffi.nullptr);
   _bindings.opj_set_error_handler(codec, callback, ffi.nullptr);
   _bindings.opj_set_info_handler(codec, callback, ffi.nullptr);
+
+  final file = fileName.toNativeUtf8();
+  final stream =
+      _bindings.opj_stream_create_default_file_stream(file.cast(), 1);
+  final imagePtrPtr = ffi.Pointer<ffi.Pointer<opj_image_t>>.fromAddress(
+    ffi.calloc<opj_image_t>().address,
+  );
+  final imagePtr = imagePtrPtr.value;
+  try {
+    if (_bindings.opj_read_header(stream, codec, imagePtrPtr) <= 0) {
+      throw ArgumentError('Failed to read the header.');
+    }
+    if (_bindings.opj_decode(codec, stream, imagePtr) <= 0) {
+      throw ArgumentError('Failed to decode.');
+    }
+    if (_bindings.opj_end_decompress(codec, stream) <= 0) {
+      throw ArgumentError('Failed to finalize.');
+    }
+  } finally {
+    _bindings.opj_destroy_codec(codec);
+    _bindings.opj_stream_destroy(stream);
+    _bindings.opj_image_destroy(imagePtr);
+    ffi.calloc.free(parameters);
+    ffi.calloc.free(file);
+  }
 }
